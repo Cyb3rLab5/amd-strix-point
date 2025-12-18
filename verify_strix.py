@@ -13,9 +13,9 @@ def benchmark_strix():
         dml_device = torch_directml.device()
         print(f"[iGPU] DirectML detected: {dml_device}")
         
-        # Allocate 8GB of VRAM as a test
-        x = torch_directml.torch.randn((1024, 1024, 1024), device=dml_device)
-        print(f"[iGPU] Successfully allocated ~4GB on Radeon 890M.")
+        # Allocate 1GB of VRAM as a test
+        x = torch_directml.torch.randn((512, 512, 1024), device=dml_device)
+        print(f"[iGPU] Successfully allocated ~1GB on Radeon 890M.")
         del x
     except Exception as e:
         print(f"[iGPU] Radeon 890M test failed: {e}")

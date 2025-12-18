@@ -60,6 +60,7 @@ parser.add_argument('--share', action='store_true')
 parser.add_argument("--server", type=str, default='0.0.0.0')
 parser.add_argument("--port", type=int, required=False)
 parser.add_argument("--inbrowser", action='store_true')
+parser.add_argument("--low-vram", action='store_true', help="Force low-vram mode (for testing laptop profiles)")
 args = parser.parse_args()
 
 # for win desktop probably use --server 127.0.0.1 --inbrowser
@@ -68,9 +69,11 @@ args = parser.parse_args()
 print(args)
 
 free_mem_gb = get_cuda_free_memory_gb(gpu)
-high_vram = free_mem_gb > 60
+high_vram = (free_mem_gb > 60) and not args.low_vram
 
 print(f'Free VRAM {free_mem_gb} GB')
+if args.low_vram:
+    print('FORCING LOW-VRAM MODE (Laptop Simulation Active)')
 print(f'High-VRAM Mode: {high_vram}')
 
 text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder', torch_dtype=torch.float16).cpu()
