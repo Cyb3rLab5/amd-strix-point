@@ -25,7 +25,7 @@ def get_flux_sigmas_from_mu(n, mu):
 
 
 @torch.inference_mode()
-def sample_hunyuan(
+def sample_framepack(
         transformer,
         sampler='unipc',
         initial_latent=None,

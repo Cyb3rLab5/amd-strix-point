@@ -16,8 +16,14 @@ Utilizes up to **94GB of System RAM** to cache the entire latent history of a pr
 
 ### 3. Dual-Agent NPU Orchestration
 Offloads logic-heavy, non-pixel tasks to the **XDNA 2 NPU** via `bridge_npu.py`:
-- **The Director (NPU)**: Handles prompt expansion and maintaining stylistic consistency.
-- **The Key Grip (NPU)**: Manages frame scheduling, latent caching logistics, and VRAM floor monitoring.
+- **The Director (NPU)**: Handles branded prompt expansion and narrative consistency.
+- **The Key Grip (NPU)**: Manages frame scheduling and VRAM floor monitoring.
+
+### 4. Dynamic Hardware Profiles
+The studio now scales for everyone:
+- **16GB iGPU Lite**: Optimized for low-RAM systems.
+- **32GB Balanced**: Standard production baseline.
+- **64GB+ Director Mode**: Full **94GB State-Saver** power.
 
 ### 4. Optimized Context Packing
 Leverages the **64GB UMA VRAM** allocation. The default `latent_window_size` is increased from 9 to **17**, allowing for significantly higher contextual awareness and smoother video chunking.
@@ -28,6 +34,7 @@ Leverages the **64GB UMA VRAM** allocation. The default `latent_window_size` is 
 
 This fork includes a revamped Gradio interface featuring:
 - **Glassmorphism Design**: A cinematic dark theme for creative focus.
+- **Hardware Profile Selector**: Adaptive performance for any AMD RAM config.
 - **NPU Status Monitor**: Real-time tracking of the Director and Key Grip agents.
 - **Live Latent Preview**: Visual monitoring of the diffusion progress.
 

@@ -15,12 +15,12 @@ import argparse
 import math
 
 from PIL import Image
-from diffusers import AutoencoderKLHunyuanVideo
+from diffusers import AutoencoderKLHunyuanVideo as FramePackVAE
 from transformers import LlamaModel, CLIPTextModel, LlamaTokenizerFast, CLIPTokenizer
-from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
+from diffusers_helper.framepack_helpers import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
 from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop, state_dict_weighted_merge, state_dict_offset_merge, generate_timestamp
-from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
-from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
+from diffusers_helper.models.framepack_transformer import FramePackTransformer
+from diffusers_helper.pipelines.framepack_pipeline import sample_framepack
 from diffusers_helper.memory import cpu, gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
 from diffusers_helper.thread_utils import AsyncStream, async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
@@ -44,6 +44,13 @@ class StateSaver:
 
     def load(self, key):
         return self.cache.get(key)
+
+# Hardware Profile Definitions
+HARDWARE_PROFILES = {
+    "16GB - iGPU Lite": {"window": 9, "ram": "16GB", "swapping": True, "vram_floor": 4.0},
+    "32GB - Balanced": {"window": 13, "ram": "32GB", "swapping": True, "vram_floor": 8.0},
+    "64GB+ - Director Mode": {"window": 17, "ram": "94GB", "swapping": False, "vram_floor": 12.0},
+}
 
 state_saver = StateSaver()
 
@@ -70,12 +77,12 @@ text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo",
 text_encoder_2 = CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu()
 tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
 tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
-vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
+vae = FramePackVAE.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
 
 feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
 image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
 
-transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
+transformer = FramePackTransformer.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
 
 vae.eval()
 text_encoder.eval()
@@ -120,7 +127,12 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf):
+def worker(hardware_profile, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, mp4_crf):
+    # Dynamic profile adjustment
+    profile = HARDWARE_PROFILES[hardware_profile]
+    latent_window_size = profile["window"] if hardware_profile != "64GB+ - Director Mode" else latent_window_size
+    gpu_memory_preservation = profile["vram_floor"]
+    
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
 
@@ -263,7 +275,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
-            generated_latents = sample_hunyuan(
+            generated_latents = sample_framepack(
                 transformer=transformer,
                 sampler='unipc',
                 width=width,
@@ -343,7 +355,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     return
 
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf):
+def process(hardware_profile, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, mp4_crf):
     global stream
     assert input_image is not None, 'No input image!'
 
@@ -351,7 +363,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     stream = AsyncStream()
 
-    async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf)
+    async_run(worker, hardware_profile, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, mp4_crf)
 
     output_filename = None
 
@@ -410,8 +422,8 @@ with block:
                 gs = gr.Slider(label="Cinematic Guidance", minimum=1.0, maximum=32.0, value=10.0, step=0.01)
                 mp4_crf = gr.Slider(label="Export Quality (CRF)", minimum=0, maximum=100, value=16, step=1)
 
-            use_teacache = gr.Checkbox(label='Turbo Cache (TeaCache)', value=True)
-            gpu_memory_preservation = gr.Slider(label="VRAM Floor (GB)", minimum=6, maximum=64, value=8, step=0.1)
+            hardware_profile = gr.Dropdown(choices=list(HARDWARE_PROFILES.keys()), value="64GB+ - Director Mode", label="💻 Hardware Profile")
+            gpu_memory_preservation = gr.Slider(label="VRAM Floor (GB)", minimum=4, maximum=64, value=8, step=0.1, visible=False)
             
             with gr.Row():
                 start_button = gr.Button("🎥 FORGE DAILIES", variant="primary")
@@ -439,7 +451,7 @@ with block:
     cfg = gr.Slider(visible=False)
     rs = gr.Slider(visible=False)
 
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf]
+    ips = [hardware_profile, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, mp4_crf]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button])
     end_button.click(fn=end_process)
 

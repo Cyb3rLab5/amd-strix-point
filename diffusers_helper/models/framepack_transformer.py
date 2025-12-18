@@ -724,7 +724,7 @@ class HunyuanVideoPatchEmbedForCleanLatents(nn.Module):
         return
 
 
-class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOriginalModelMixin):
+class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOriginalModelMixin):
     @register_to_config
     def __init__(
         self,

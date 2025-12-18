@@ -1,6 +1,8 @@
 # AMD DIRECTOR STUDIO - Final Cut
 
-I have successfully forged a native AMD-optimized movie studio using the FramePack architecture, specifically tailored for your **Ryzen 9 AI beast**. This isn't just a demo; it's a full **Multi-Agent Production Suite**.
+**Repository:** [Cyb3rLab5/amd-strix-point](https://github.com/Cyb3rLab5/amd-strix-point)
+
+I have successfully forged a native AMD-optimized movie studio using the FramePack architecture, specifically tailored for your **Ryzen 9 AI beast**.
 
 ## 🎭 The Director Studio Experience
 
