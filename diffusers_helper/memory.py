@@ -95,9 +95,8 @@ def get_cuda_free_memory_gb(device=None):
         return 60.0 # Conservative estimate
 
     try:
-        memory_stats = torch.cuda.memory_stats(device)
-        bytes_active = memory_stats['active_bytes.all.current']
-        bytes_reserved = memory_stats['reserved_bytes.all.current']
+        bytes_active = torch.cuda.memory_allocated(device)
+        bytes_reserved = torch.cuda.memory_reserved(device)
         bytes_free_cuda, _ = torch.cuda.mem_get_info(device)
         bytes_inactive_reserved = bytes_reserved - bytes_active
         bytes_total_available = bytes_free_cuda + bytes_inactive_reserved
