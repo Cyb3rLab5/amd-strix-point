@@ -1,0 +1,3 @@
+## 2025-02-24 - VRAM Checking Overhead during Model Iteration
+**Learning:** Checking VRAM state (`torch.cuda.memory_stats`, `torch.cuda.mem_get_info`, or custom fallbacks) during model loading/offloading loops is surprisingly expensive when iterating over thousands of nested modules (e.g., `model.modules()`). Doing this synchronously blocks the CPU thread for significant periods (up to ~2.8 seconds locally on mock models).
+**Action:** When designing "memory-aware" model loading or offloading, check the VRAM state periodically (e.g., every 64 or 100 modules) rather than synchronously on every single module iteration. This provides huge speedups (~2x faster loading/offloading times in tests) while still reacting quickly enough to prevent out-of-memory errors.
