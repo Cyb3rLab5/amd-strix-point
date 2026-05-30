@@ -1,0 +1,3 @@
+## 2024-05-30 - Caching Tensors in Hot Loops
+**Learning:** In the diffusion process, UI preview callbacks like `vae_decode_fake` are executed continuously (per sampling step). Initializing lists and converting them to torch tensors inside such hot loops is an invisible bottleneck. In this specific case, the `latent_rgb_factors` list to tensor conversion + transpose took ~30% more time per call.
+**Action:** When working on UI/callback code within inner sampling loops, always ensure static arrays/tensors are initialized globally and lazily (with device/dtype checks) rather than locally per-invocation.
