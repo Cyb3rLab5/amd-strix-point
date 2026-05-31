@@ -109,6 +109,12 @@ def get_cuda_free_memory_gb(device=None):
 def move_model_to_device_with_memory_preservation(model, target_device, preserved_memory_gb=0):
     print(f'Moving {model.__class__.__name__} to {target_device} with preserved memory: {preserved_memory_gb} GB')
 
+    if preserved_memory_gb <= 0:
+        model.to(device=target_device)
+        if 'cuda' in str(target_device):
+            torch.cuda.empty_cache()
+        return
+
     for m in model.modules():
         if get_cuda_free_memory_gb(target_device) <= preserved_memory_gb:
             if 'cuda' in str(target_device):
@@ -126,6 +132,11 @@ def move_model_to_device_with_memory_preservation(model, target_device, preserve
 
 def offload_model_from_device_for_memory_preservation(model, target_device, preserved_memory_gb=0):
     print(f'Offloading {model.__class__.__name__} from {target_device} to preserve memory: {preserved_memory_gb} GB')
+
+    if preserved_memory_gb <= 0:
+        if 'cuda' in str(target_device):
+            torch.cuda.empty_cache()
+        return
 
     for m in model.modules():
         if get_cuda_free_memory_gb(target_device) >= preserved_memory_gb:
