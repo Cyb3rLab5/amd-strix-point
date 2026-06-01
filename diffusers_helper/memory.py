@@ -88,11 +88,20 @@ def get_cuda_free_memory_gb(device=None):
     if device is None:
         device = gpu
     
-    # DirectML specific memory reporting often requires different APIs or is Opaque
-    # We will fallback to a static estimate for AMD iGPU if dynamic reporting fails
-    if 'privateuseone' in str(device):
-        # Placeholder for AMD iGPU memory estimation (64GB allocated)
-        return 60.0 # Conservative estimate
+    # Performance Optimization: Early return for non-CUDA devices.
+    # Prevents expensive exception handling during model initialization
+    # loop for CPU or DirectML ('privateuseone') devices.
+
+    # Handle int inputs (0 -> 'cuda:0') or check string representation
+    is_cuda = isinstance(device, int) or str(device).startswith('cuda')
+
+    if not is_cuda:
+        # DirectML specific memory reporting often requires different APIs or is Opaque
+        # We will fallback to a static estimate for AMD iGPU if dynamic reporting fails
+        if 'privateuseone' in str(device):
+            # Placeholder for AMD iGPU memory estimation (64GB allocated)
+            return 60.0 # Conservative estimate
+        return 8.0 # Minimum fallback
 
     try:
         memory_stats = torch.cuda.memory_stats(device)
