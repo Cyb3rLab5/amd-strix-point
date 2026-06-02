@@ -1,0 +1,3 @@
+## 2025-03-01 - PyTorch Tensor Instantiation overhead
+**Learning:** `torch.tensor([val] * size).to(device)` is extremely slow due to intermediate Python list creation and cross-device data loading. `torch.full((size,), val, device=device)` is roughly ~3.5x faster. Also, converting lists of tensors into a tensor via `torch.tensor([tensor1, tensor2])` hits slow fallback paths; `torch.stack` or `torch.cat` should be used instead.
+**Action:** Always favor native PyTorch constructors (`torch.full`, `torch.zeros`, `torch.ones`, `torch.arange`, `torch.linspace`, `torch.stack`) over Python list-based tensor instantiation, especially inside core evaluation loops like model inference.

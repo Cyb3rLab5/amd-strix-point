@@ -10,7 +10,7 @@ from tqdm.auto import trange
 
 
 def expand_dims(v, dims):
-    return v[(...,) + (None,) * (dims - 1)]
+    return v.view(*v.shape, *(1,) * max(0, dims - 1))
 
 
 class FlowMatchUniPC:
@@ -44,7 +44,7 @@ class FlowMatchUniPC:
             D1s.append((model_prev_i - model_prev_0) / rk)
 
         rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+        rks = torch.tensor(tuple(rks), device=x.device)
 
         R = []
         b = []
@@ -69,14 +69,14 @@ class FlowMatchUniPC:
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        b = torch.stack(b).to(x.device)
 
         use_predictor = len(D1s) > 0
 
         if use_predictor:
             D1s = torch.stack(D1s, dim=1)
             if order == 2:
-                rhos_p = torch.tensor([0.5], device=b.device)
+                rhos_p = torch.tensor((0.5,), device=b.device)
             else:
                 rhos_p = torch.linalg.solve(R[:-1, :-1], b[:-1])
         else:
@@ -84,7 +84,7 @@ class FlowMatchUniPC:
             rhos_p = None
 
         if order == 1:
-            rhos_c = torch.tensor([0.5], device=b.device)
+            rhos_c = torch.tensor((0.5,), device=b.device)
         else:
             rhos_c = torch.linalg.solve(R, b)
 
