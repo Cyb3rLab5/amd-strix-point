@@ -95,10 +95,13 @@ def get_cuda_free_memory_gb(device=None):
         return 60.0 # Conservative estimate
 
     try:
-        memory_stats = torch.cuda.memory_stats(device)
-        bytes_active = memory_stats['active_bytes.all.current']
-        bytes_reserved = memory_stats['reserved_bytes.all.current']
+        # ⚡ BOLT OPTIMIZATION: Replaced expensive memory_stats() dictionary allocation
+        # with direct C++ API calls. This is critical because this function is called
+        # inside per-module iteration loops during model device transfers.
         bytes_free_cuda, _ = torch.cuda.mem_get_info(device)
+        bytes_active = torch.cuda.memory_allocated(device)
+        bytes_reserved = torch.cuda.memory_reserved(device)
+
         bytes_inactive_reserved = bytes_reserved - bytes_active
         bytes_total_available = bytes_free_cuda + bytes_inactive_reserved
         return bytes_total_available / (1024 ** 3)

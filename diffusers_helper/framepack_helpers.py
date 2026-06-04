@@ -58,31 +58,47 @@ def encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokeniz
     return llama_vec, clip_l_pooler
 
 
+# ⚡ BOLT OPTIMIZATION: Cache static tensors globally to prevent redundant instantiation
+# and host-to-device transfers during the tight diffusion progress preview loop.
+_VAE_DECODE_FAKE_WEIGHT_CACHE = {}
+_VAE_DECODE_FAKE_BIAS_CACHE = {}
+
 @torch.no_grad()
 def vae_decode_fake(latents):
-    latent_rgb_factors = [
-        [-0.0395, -0.0331, 0.0445],
-        [0.0696, 0.0795, 0.0518],
-        [0.0135, -0.0945, -0.0282],
-        [0.0108, -0.0250, -0.0765],
-        [-0.0209, 0.0032, 0.0224],
-        [-0.0804, -0.0254, -0.0639],
-        [-0.0991, 0.0271, -0.0669],
-        [-0.0646, -0.0422, -0.0400],
-        [-0.0696, -0.0595, -0.0894],
-        [-0.0799, -0.0208, -0.0375],
-        [0.1166, 0.1627, 0.0962],
-        [0.1165, 0.0432, 0.0407],
-        [-0.2315, -0.1920, -0.1355],
-        [-0.0270, 0.0401, -0.0821],
-        [-0.0616, -0.0997, -0.0727],
-        [0.0249, -0.0469, -0.1703]
-    ]  # From comfyui
+    device = latents.device
+    dtype = latents.dtype
+    cache_key = (device, dtype)
 
-    latent_rgb_factors_bias = [0.0259, -0.0192, -0.0761]
+    if cache_key not in _VAE_DECODE_FAKE_WEIGHT_CACHE:
+        latent_rgb_factors = [
+            [-0.0395, -0.0331, 0.0445],
+            [0.0696, 0.0795, 0.0518],
+            [0.0135, -0.0945, -0.0282],
+            [0.0108, -0.0250, -0.0765],
+            [-0.0209, 0.0032, 0.0224],
+            [-0.0804, -0.0254, -0.0639],
+            [-0.0991, 0.0271, -0.0669],
+            [-0.0646, -0.0422, -0.0400],
+            [-0.0696, -0.0595, -0.0894],
+            [-0.0799, -0.0208, -0.0375],
+            [0.1166, 0.1627, 0.0962],
+            [0.1165, 0.0432, 0.0407],
+            [-0.2315, -0.1920, -0.1355],
+            [-0.0270, 0.0401, -0.0821],
+            [-0.0616, -0.0997, -0.0727],
+            [0.0249, -0.0469, -0.1703]
+        ]  # From comfyui
 
-    weight = torch.tensor(latent_rgb_factors, device=latents.device, dtype=latents.dtype).transpose(0, 1)[:, :, None, None, None]
-    bias = torch.tensor(latent_rgb_factors_bias, device=latents.device, dtype=latents.dtype)
+        latent_rgb_factors_bias = [0.0259, -0.0192, -0.0761]
+
+        weight = torch.tensor(latent_rgb_factors, device=device, dtype=dtype).transpose(0, 1)[:, :, None, None, None]
+        bias = torch.tensor(latent_rgb_factors_bias, device=device, dtype=dtype)
+
+        _VAE_DECODE_FAKE_WEIGHT_CACHE[cache_key] = weight
+        _VAE_DECODE_FAKE_BIAS_CACHE[cache_key] = bias
+
+    weight = _VAE_DECODE_FAKE_WEIGHT_CACHE[cache_key]
+    bias = _VAE_DECODE_FAKE_BIAS_CACHE[cache_key]
 
     images = torch.nn.functional.conv3d(latents, weight, bias=bias, stride=1, padding=0, dilation=1, groups=1)
     images = images.clamp(0.0, 1.0)
