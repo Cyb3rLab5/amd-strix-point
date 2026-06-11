@@ -427,6 +427,7 @@ class HunyuanVideoRotaryPosEmbed(nn.Module):
         super().__init__()
         self.DT, self.DY, self.DX = rope_dim
         self.theta = theta
+        self.spatial_cache = {}
 
     @torch.no_grad()
     def get_frequency_1d(self, dim, pos_1d):
@@ -441,26 +442,36 @@ class HunyuanVideoRotaryPosEmbed(nn.Module):
         B, T = frame_indices.shape
         H, W = height, width
 
-        frame_indices = frame_indices.to(device=device, dtype=torch.float32)
+        spatial_cache_key = (H, W, device)
+        if spatial_cache_key not in self.spatial_cache:
+            y_pos = torch.arange(0, height, device=device, dtype=torch.float32)
+            fcy, fsy = self.get_frequency_1d(self.DY, y_pos)
+            fcy = fcy.view(1, self.DY, 1, H, 1).expand(1, self.DY, 1, H, W)
+            fsy = fsy.view(1, self.DY, 1, H, 1).expand(1, self.DY, 1, H, W)
 
-        # 1. T axis
+            x_pos = torch.arange(0, width, device=device, dtype=torch.float32)
+            fcx, fsx = self.get_frequency_1d(self.DX, x_pos)
+            fcx = fcx.view(1, self.DX, 1, 1, W).expand(1, self.DX, 1, H, W)
+            fsx = fsx.view(1, self.DX, 1, 1, W).expand(1, self.DX, 1, H, W)
+
+            # Pre-concatenate spatial dims: y and x are independent of T and B
+            fc_spatial = torch.cat([fcy, fcx], dim=1) # shape (1, DY+DX, 1, H, W)
+            fs_spatial = torch.cat([fsy, fsx], dim=1) # shape (1, DY+DX, 1, H, W)
+            self.spatial_cache[spatial_cache_key] = (fc_spatial, fs_spatial)
+
+        fc_spatial, fs_spatial = self.spatial_cache[spatial_cache_key]
+
+        # Expand spatial part to B, T
+        # Expanding is essentially zero-copy and extremely fast
+        fc_spatial = fc_spatial.expand(B, -1, T, H, W)
+        fs_spatial = fs_spatial.expand(B, -1, T, H, W)
+
+        frame_indices = frame_indices.to(device=device, dtype=torch.float32)
         fct, fst = self.get_frequency_1d(self.DT, frame_indices.reshape(-1))
         fct = fct.view(self.DT, B, T, 1, 1).permute(1, 0, 2, 3, 4).expand(B, self.DT, T, H, W)
         fst = fst.view(self.DT, B, T, 1, 1).permute(1, 0, 2, 3, 4).expand(B, self.DT, T, H, W)
 
-        # 2. Y axis
-        y_pos = torch.arange(0, height, device=device, dtype=torch.float32)
-        fcy, fsy = self.get_frequency_1d(self.DY, y_pos)
-        fcy = fcy.view(1, self.DY, 1, H, 1).expand(B, self.DY, T, H, W)
-        fsy = fsy.view(1, self.DY, 1, H, 1).expand(B, self.DY, T, H, W)
-
-        # 3. X axis
-        x_pos = torch.arange(0, width, device=device, dtype=torch.float32)
-        fcx, fsx = self.get_frequency_1d(self.DX, x_pos)
-        fcx = fcx.view(1, self.DX, 1, 1, W).expand(B, self.DX, T, H, W)
-        fsx = fsx.view(1, self.DX, 1, 1, W).expand(B, self.DX, T, H, W)
-
-        result = torch.cat([fct, fcy, fcx, fst, fsy, fsx], dim=1)
+        result = torch.cat([fct, fc_spatial, fst, fs_spatial], dim=1)
         return result
 
 
