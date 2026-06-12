@@ -429,35 +429,39 @@ class HunyuanVideoRotaryPosEmbed(nn.Module):
         self.theta = theta
 
     @torch.no_grad()
-    def get_frequency(self, dim, pos):
-        T, H, W = pos.shape
-        freqs = 1.0 / (self.theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=pos.device)[: (dim // 2)] / dim))
-        freqs = torch.outer(freqs, pos.reshape(-1)).unflatten(-1, (T, H, W)).repeat_interleave(2, dim=0)
+    def get_frequency_1d(self, dim, pos_1d):
+        freqs = 1.0 / (self.theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=pos_1d.device)[: (dim // 2)] / dim))
+        freqs = torch.outer(freqs, pos_1d)
+        freqs = freqs.repeat_interleave(2, dim=0)
         return freqs.cos(), freqs.sin()
 
     @torch.no_grad()
-    def forward_inner(self, frame_indices, height, width, device):
-        GT, GY, GX = torch.meshgrid(
-            frame_indices.to(device=device, dtype=torch.float32),
-            torch.arange(0, height, device=device, dtype=torch.float32),
-            torch.arange(0, width, device=device, dtype=torch.float32),
-            indexing="ij"
-        )
-
-        FCT, FST = self.get_frequency(self.DT, GT)
-        FCY, FSY = self.get_frequency(self.DY, GY)
-        FCX, FSX = self.get_frequency(self.DX, GX)
-
-        result = torch.cat([FCT, FCY, FCX, FST, FSY, FSX], dim=0)
-
-        return result.to(device)
-
-    @torch.no_grad()
     def forward(self, frame_indices, height, width, device):
-        frame_indices = frame_indices.unbind(0)
-        results = [self.forward_inner(f, height, width, device) for f in frame_indices]
-        results = torch.stack(results, dim=0)
-        return results
+        # frame_indices shape: (B, T)
+        B, T = frame_indices.shape
+        H, W = height, width
+
+        frame_indices = frame_indices.to(device=device, dtype=torch.float32)
+
+        # 1. T axis
+        fct, fst = self.get_frequency_1d(self.DT, frame_indices.reshape(-1))
+        fct = fct.view(self.DT, B, T, 1, 1).permute(1, 0, 2, 3, 4).expand(B, self.DT, T, H, W)
+        fst = fst.view(self.DT, B, T, 1, 1).permute(1, 0, 2, 3, 4).expand(B, self.DT, T, H, W)
+
+        # 2. Y axis
+        y_pos = torch.arange(0, height, device=device, dtype=torch.float32)
+        fcy, fsy = self.get_frequency_1d(self.DY, y_pos)
+        fcy = fcy.view(1, self.DY, 1, H, 1).expand(B, self.DY, T, H, W)
+        fsy = fsy.view(1, self.DY, 1, H, 1).expand(B, self.DY, T, H, W)
+
+        # 3. X axis
+        x_pos = torch.arange(0, width, device=device, dtype=torch.float32)
+        fcx, fsx = self.get_frequency_1d(self.DX, x_pos)
+        fcx = fcx.view(1, self.DX, 1, 1, W).expand(B, self.DX, T, H, W)
+        fsx = fsx.view(1, self.DX, 1, 1, W).expand(B, self.DX, T, H, W)
+
+        result = torch.cat([fct, fcy, fcx, fst, fsy, fsx], dim=1)
+        return result
 
 
 class AdaLayerNormZero(nn.Module):
