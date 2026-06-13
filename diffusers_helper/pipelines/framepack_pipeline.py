@@ -81,7 +81,9 @@ def sample_framepack(
     if concat_latent is not None:
         concat_latent = concat_latent.to(latents)
 
-    distilled_guidance = torch.tensor([distilled_guidance_scale * 1000.0] * batch_size).to(device=device, dtype=dtype)
+    # ⚡ Bolt Optimization: Replace `torch.tensor` python list conversion with `torch.full`
+    # This creates the tensor directly on the target device natively in C++.
+    distilled_guidance = torch.full((batch_size,), distilled_guidance_scale * 1000.0, device=device, dtype=dtype)
 
     prompt_embeds = repeat_to_batch_size(prompt_embeds, batch_size)
     prompt_embeds_mask = repeat_to_batch_size(prompt_embeds_mask, batch_size)
