@@ -84,14 +84,16 @@ def get_cu_seqlens(text_mask, img_len):
     text_len = text_mask.sum(dim=1)
     max_len = text_mask.shape[1] + img_len
 
-    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device="cuda")
+    # Performance Optimization: vectorized sequential assignment and removed hardcoded 'cuda' device
+    device = text_mask.device
+    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device=device)
 
-    for i in range(batch_size):
-        s = text_len[i] + img_len
-        s1 = i * max_len + s
-        s2 = (i + 1) * max_len
-        cu_seqlens[2 * i + 1] = s1
-        cu_seqlens[2 * i + 2] = s2
+    i = torch.arange(batch_size, device=device)
+    s1 = i * max_len + text_len + img_len
+    s2 = (i + 1) * max_len
+
+    cu_seqlens[1::2] = s1
+    cu_seqlens[2::2] = s2
 
     return cu_seqlens
 
@@ -937,7 +939,8 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         if batch_size == 1:
             # When batch size is 1, we do not need any masks or var-len funcs since cropping is mathematically same to what we want
             # If they are not same, then their impls are wrong. Ours are always the correct one.
-            text_len = encoder_attention_mask.sum().item()
+            # Performance Optimization: removed .item() to prevent CPU-GPU synchronization in the hot loop
+            text_len = encoder_attention_mask.sum()
             encoder_hidden_states = encoder_hidden_states[:, :text_len]
             attention_mask = None, None, None, None
         else:
