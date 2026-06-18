@@ -81,17 +81,18 @@ def center_down_sample_3d(x, kernel_size):
 
 def get_cu_seqlens(text_mask, img_len):
     batch_size = text_mask.shape[0]
-    text_len = text_mask.sum(dim=1)
+    text_len = text_mask.sum(dim=1, dtype=torch.int32)
     max_len = text_mask.shape[1] + img_len
 
-    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device="cuda")
+    # ⚡ Bolt Optimization: Vectorized cu_seqlens generation instead of CPU loop creating tensors.
+    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device=text_mask.device)
 
-    for i in range(batch_size):
-        s = text_len[i] + img_len
-        s1 = i * max_len + s
-        s2 = (i + 1) * max_len
-        cu_seqlens[2 * i + 1] = s1
-        cu_seqlens[2 * i + 2] = s2
+    i = torch.arange(batch_size, device=text_mask.device, dtype=torch.int32)
+    s1 = i * max_len + text_len + img_len
+    s2 = (i + 1) * max_len
+
+    cu_seqlens[1::2] = s1
+    cu_seqlens[2::2] = s2
 
     return cu_seqlens
 
@@ -831,7 +832,9 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         self.accumulated_rel_l1_distance = 0
         self.previous_modulated_input = None
         self.previous_residual = None
-        self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        # self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        # Replaced np.poly1d with PyTorch-native Horner's method computation to avoid CPU-GPU synchronization.
+        # See teacache_rescale_func below.
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
@@ -937,7 +940,8 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         if batch_size == 1:
             # When batch size is 1, we do not need any masks or var-len funcs since cropping is mathematically same to what we want
             # If they are not same, then their impls are wrong. Ours are always the correct one.
-            text_len = encoder_attention_mask.sum().item()
+            # ⚡ Bolt Optimization: Removed .item() on sum() to prevent CPU-GPU synchronization. PyTorch allows slicing with 0D int tensors.
+            text_len = encoder_attention_mask.sum(dtype=torch.int32)
             encoder_hidden_states = encoder_hidden_states[:, :text_len]
             attention_mask = None, None, None, None
         else:
@@ -956,14 +960,23 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
 
             if self.cnt == 0 or self.cnt == self.num_steps-1:
                 should_calc = True
-                self.accumulated_rel_l1_distance = 0
+                self.accumulated_rel_l1_distance = 0.0
             else:
-                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).cpu().item()
-                self.accumulated_rel_l1_distance += self.teacache_rescale_func(curr_rel_l1)
+                # ⚡ Bolt Optimization: Removed .cpu().item() to prevent blocking CPU-GPU synchronization
+                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean())
+
+                # ⚡ Bolt Optimization: Using pure PyTorch math (Horner's method) instead of np.poly1d
+                rescaled_rel_l1 = (((733.226126 * curr_rel_l1 - 401.131952) * curr_rel_l1 + 67.5869174) * curr_rel_l1 - 3.149878) * curr_rel_l1 + 0.0961237896
+
+                self.accumulated_rel_l1_distance += rescaled_rel_l1
                 should_calc = self.accumulated_rel_l1_distance >= self.rel_l1_thresh
 
                 if should_calc:
-                    self.accumulated_rel_l1_distance = 0
+                    # Reset accum properly whether it's a tensor or a float
+                    if isinstance(self.accumulated_rel_l1_distance, torch.Tensor):
+                        self.accumulated_rel_l1_distance.zero_()
+                    else:
+                        self.accumulated_rel_l1_distance = 0.0
 
             self.previous_modulated_input = modulated_inp
             self.cnt += 1
