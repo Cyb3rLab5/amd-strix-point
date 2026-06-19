@@ -831,7 +831,8 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         self.accumulated_rel_l1_distance = 0
         self.previous_modulated_input = None
         self.previous_residual = None
-        self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        # ⚡ Bolt: Store coefficients as a tuple instead of np.poly1d to avoid passing GPU tensors to NumPy
+        self.teacache_rescale_coeffs = (7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02)
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
@@ -937,7 +938,8 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         if batch_size == 1:
             # When batch size is 1, we do not need any masks or var-len funcs since cropping is mathematically same to what we want
             # If they are not same, then their impls are wrong. Ours are always the correct one.
-            text_len = encoder_attention_mask.sum().item()
+            # ⚡ Bolt: Use a 0D integer tensor for slicing instead of .item() to avoid CPU-GPU synchronization.
+            text_len = encoder_attention_mask.sum(dtype=torch.int32)
             encoder_hidden_states = encoder_hidden_states[:, :text_len]
             attention_mask = None, None, None, None
         else:
@@ -958,8 +960,14 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
                 should_calc = True
                 self.accumulated_rel_l1_distance = 0
             else:
-                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).cpu().item()
-                self.accumulated_rel_l1_distance += self.teacache_rescale_func(curr_rel_l1)
+                # ⚡ Bolt: Keep curr_rel_l1 on GPU, calculate polynomial with Horner's method
+                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean())
+
+                res = curr_rel_l1 * 0.0 + self.teacache_rescale_coeffs[0]
+                for c in self.teacache_rescale_coeffs[1:]:
+                    res = res * curr_rel_l1 + c
+
+                self.accumulated_rel_l1_distance += res
                 should_calc = self.accumulated_rel_l1_distance >= self.rel_l1_thresh
 
                 if should_calc:

@@ -8,3 +8,6 @@
 ## 2024-06-03 - VRAM Polling Overhead in Model Iteration
 **Learning:** Calling `torch.cuda.memory_stats()` or `torch.cuda.mem_get_info()` continuously during module iteration (like moving a large model with `model.modules()`) introduces a massive bottleneck. The CUDA runtime syncs the CPU and GPU on each check, causing a massive stall.
 **Action:** When tracking VRAM floor/ceiling limits dynamically, always batch the polling checks using a modulus (e.g. `if i % 25 == 0`) rather than checking on every single iteration step.
+## 2025-02-23 - PyTorch CPU-GPU Synchronization
+**Learning:** Calling `.item()` on a tensor to calculate string slices or passing a tensor to `np.poly1d` in a hot loop (like a transformer forward pass) creates a massive blocking CPU-GPU synchronization overhead. PyTorch handles slicing fine using 0D integer tensors and polynomials can be implemented functionally using Horner's method.
+**Action:** Replace `.item()` with `.sum(dtype=torch.int32)` for slice calculation to keep logic 0D scalar and fully on GPU. Re-write NumPy polynomials utilizing Python variables containing float primitives initialized on top of the original tensor.
