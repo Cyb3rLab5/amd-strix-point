@@ -8,3 +8,6 @@
 ## 2024-06-03 - VRAM Polling Overhead in Model Iteration
 **Learning:** Calling `torch.cuda.memory_stats()` or `torch.cuda.mem_get_info()` continuously during module iteration (like moving a large model with `model.modules()`) introduces a massive bottleneck. The CUDA runtime syncs the CPU and GPU on each check, causing a massive stall.
 **Action:** When tracking VRAM floor/ceiling limits dynamically, always batch the polling checks using a modulus (e.g. `if i % 25 == 0`) rather than checking on every single iteration step.
+## 2026-06-23 - NumPy overhead in PyTorch Hot Loops
+**Learning:** Evaluating `np.poly1d` on single scalar values in PyTorch hot loops introduces significant Numpy overhead compared to native Python math, especially when evaluating small fixed-degree polynomials.
+**Action:** Replace `np.poly1d` with a native Python lambda or method using Horner's method when evaluating polynomials on single scalars in hot loops. This avoids Numpy function call and object overhead, yielding substantial speedups for small scale computations.
