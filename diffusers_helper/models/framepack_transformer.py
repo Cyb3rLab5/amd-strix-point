@@ -831,7 +831,7 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         self.accumulated_rel_l1_distance = 0
         self.previous_modulated_input = None
         self.previous_residual = None
-        self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        self.teacache_rescale_coeffs = [7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02]
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
@@ -959,7 +959,11 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
                 self.accumulated_rel_l1_distance = 0
             else:
                 curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).cpu().item()
-                self.accumulated_rel_l1_distance += self.teacache_rescale_func(curr_rel_l1)
+                # Optimize polynomial evaluation using Horner's method on CPU scalar
+                rescaled_distance = 0.0
+                for c in self.teacache_rescale_coeffs:
+                    rescaled_distance = rescaled_distance * curr_rel_l1 + c
+                self.accumulated_rel_l1_distance += rescaled_distance
                 should_calc = self.accumulated_rel_l1_distance >= self.rel_l1_thresh
 
                 if should_calc:
