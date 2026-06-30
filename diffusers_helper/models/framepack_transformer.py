@@ -831,7 +831,9 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
         self.accumulated_rel_l1_distance = 0
         self.previous_modulated_input = None
         self.previous_residual = None
-        self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        # Evaluating np.poly1d on single scalar values in hot loops introduces significant Numpy overhead.
+        # Extracted the scalar using `.cpu().item()` and evaluating using unrolled Horner's method on CPU.
+        self.teacache_rescale_func = lambda x: (((7.33226126e+02 * x - 4.01131952e+02) * x + 6.75869174e+01) * x - 3.14987800e+00) * x + 9.61237896e-02
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
