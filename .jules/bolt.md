@@ -12,3 +12,6 @@
 ## 2024-07-07 - Numpy Poly1d Evaluation Overhead in Hot Loops
 **Learning:** Evaluating `np.poly1d` on single scalar values inside PyTorch hot loops introduces significant Numpy overhead (~10-15 microseconds per call) due to type checking and wrapping.
 **Action:** When a polynomial evaluation is needed on scalar values in a hot loop, extract the scalar using `.cpu().item()` and use an unrolled native Python lambda (via Horner's method) to reduce evaluation time to ~100 nanoseconds.
+## 2024-07-19 - Vectorizing cu_seqlens loops
+**Learning:** Python loops over batch sizes to calculate cumulative sequence lengths (cu_seqlens) introduce unnecessary CPU overhead, and hardcoding device="cuda" breaks execution on other devices like DML or CPU.
+**Action:** When building cumulative lengths or offsets based on batch size, use vectorized PyTorch tensor slice assignments (`1::2`, `2::2`) and `torch.arange` on the input tensor's device to calculate them in one pass.
