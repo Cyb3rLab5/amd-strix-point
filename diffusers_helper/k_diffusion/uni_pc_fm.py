@@ -43,8 +43,11 @@ class FlowMatchUniPC:
             rks.append(rk)
             D1s.append((model_prev_i - model_prev_0) / rk)
 
-        rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+        # ⚡ Bolt Optimization: Replace torch.tensor() with torch.stack()
+        # Creating a tensor from a list containing both GPU scalar tensors and python floats
+        # forces an implicit, blocking CPU-GPU synchronization. torch.stack() avoids this.
+        rks.append(torch.tensor(1., device=x.device, dtype=rks[0].dtype) if len(rks) > 0 else torch.tensor(1., device=x.device))
+        rks = torch.stack(rks)
 
         R = []
         b = []
@@ -69,7 +72,7 @@ class FlowMatchUniPC:
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        b = torch.stack([val if isinstance(val, torch.Tensor) else torch.tensor(val, device=x.device, dtype=b[0].dtype if len(b) > 0 else None) for val in b])
 
         use_predictor = len(D1s) > 0
 
