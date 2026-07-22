@@ -15,3 +15,6 @@
 ## 2024-07-19 - Vectorizing cu_seqlens loops
 **Learning:** Python loops over batch sizes to calculate cumulative sequence lengths (cu_seqlens) introduce unnecessary CPU overhead, and hardcoding device="cuda" breaks execution on other devices like DML or CPU.
 **Action:** When building cumulative lengths or offsets based on batch size, use vectorized PyTorch tensor slice assignments (`1::2`, `2::2`) and `torch.arange` on the input tensor's device to calculate them in one pass.
+## 2024-07-22 - Implicit CPU-GPU Sync from Python Lists
+**Learning:** Creating a PyTorch tensor directly from a Python list containing elements (or a scalar) and immediately moving it to a device (e.g., `torch.tensor([val] * bs).to(device)`) forces an implicit, blocking CPU-GPU synchronization overhead.
+**Action:** When initializing tensors with constant values, use `torch.full()` or `torch.zeros()`/`torch.ones()` directly on the target device to avoid CPU-GPU synchronization and reduce overhead.

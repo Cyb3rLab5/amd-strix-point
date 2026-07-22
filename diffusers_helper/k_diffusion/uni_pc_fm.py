@@ -76,7 +76,7 @@ class FlowMatchUniPC:
         if use_predictor:
             D1s = torch.stack(D1s, dim=1)
             if order == 2:
-                rhos_p = torch.tensor([0.5], device=b.device)
+                rhos_p = torch.full((1,), 0.5, device=b.device)
             else:
                 rhos_p = torch.linalg.solve(R[:-1, :-1], b[:-1])
         else:
@@ -84,7 +84,7 @@ class FlowMatchUniPC:
             rhos_p = None
 
         if order == 1:
-            rhos_c = torch.tensor([0.5], device=b.device)
+            rhos_c = torch.full((1,), 0.5, device=b.device)
         else:
             rhos_c = torch.linalg.solve(R, b)
 
