@@ -44,7 +44,12 @@ class FlowMatchUniPC:
             D1s.append((model_prev_i - model_prev_0) / rk)
 
         rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+
+        # ⚡ Bolt Optimization: Use CPU tensor creation to avoid implicit CPU-GPU synchronization,
+        # then move it to the device explicitly if needed. A Python list with elements evaluated
+        # to a GPU tensor via torch.tensor(..., device=x.device) causes overhead.
+        # Although rks contains scalars here, torch.tensor(list, device) is still slower.
+        rks = torch.tensor(rks).to(x.device)
 
         R = []
         b = []
@@ -69,7 +74,8 @@ class FlowMatchUniPC:
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        # Same optimization here
+        b = torch.tensor(b).to(x.device)
 
         use_predictor = len(D1s) > 0
 
