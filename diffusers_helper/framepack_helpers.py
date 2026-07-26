@@ -26,9 +26,15 @@ def encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokeniz
         return_attention_mask=True,
     )
 
+    # ⚡ Bolt Optimization: Compute sum on the CPU tensor before moving to the device.
+    # Converting a GPU tensor sum to int forces a blocking CPU-GPU synchronization.
+    llama_attention_length = int(llama_inputs.attention_mask.sum())
+
+    # Assert on the CPU tensor to avoid CPU-GPU sync
+    assert torch.all(llama_inputs.attention_mask[:, crop_start:llama_attention_length].bool())
+
     llama_input_ids = llama_inputs.input_ids.to(text_encoder.device)
     llama_attention_mask = llama_inputs.attention_mask.to(text_encoder.device)
-    llama_attention_length = int(llama_attention_mask.sum())
 
     llama_outputs = text_encoder(
         input_ids=llama_input_ids,
@@ -39,8 +45,6 @@ def encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokeniz
     llama_vec = llama_outputs.hidden_states[-3][:, crop_start:llama_attention_length]
     # llama_vec_remaining = llama_outputs.hidden_states[-3][:, llama_attention_length:]
     llama_attention_mask = llama_attention_mask[:, crop_start:llama_attention_length]
-
-    assert torch.all(llama_attention_mask.bool())
 
     # CLIP
 
