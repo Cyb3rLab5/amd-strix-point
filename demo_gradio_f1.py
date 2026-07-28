@@ -219,11 +219,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
-            indices = torch.arange(0, sum([1, 16, 2, 1, latent_window_size])).unsqueeze(0)
+            # Optimization: Replaced sum([...]) with direct arithmetic to avoid list allocation and CPU overhead.
+            indices = torch.arange(0, 1 + 16 + 2 + 1 + latent_window_size).unsqueeze(0)
             clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, latent_window_size], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
 
-            clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
+            # Optimization: Replaced sum([...]) with direct arithmetic to avoid list allocation and CPU overhead.
+            clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -(16 + 2 + 1):, :, :].split([16, 2, 1], dim=2)
             clean_latents = torch.cat([start_latent.to(history_latents), clean_latents_1x], dim=2)
 
             generated_latents = sample_framepack(

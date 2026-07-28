@@ -18,3 +18,6 @@
 ## 2024-07-22 - Implicit CPU-GPU Sync from Python Lists
 **Learning:** Creating a PyTorch tensor directly from a Python list containing elements (or a scalar) and immediately moving it to a device (e.g., `torch.tensor([val] * bs).to(device)`) forces an implicit, blocking CPU-GPU synchronization overhead.
 **Action:** When initializing tensors with constant values, use `torch.full()` or `torch.zeros()`/`torch.ones()` directly on the target device to avoid CPU-GPU synchronization and reduce overhead.
+## 2024-07-25 - CPU-GPU Sync on Tensor Sum and List Allocation Overhead
+**Learning:** Calling `.sum()` on a tensor after it has been moved to a device (e.g., `gpu_tensor.sum()`) and immediately converting it to a Python integer (`int()`) forces a blocking CPU-GPU synchronization. Additionally, using Python`s `sum()` function over a dynamically constructed list (e.g., `sum([var1, var2, const1])`) introduces unnecessary list allocation and CPU overhead in hot loops.
+**Action:** When a sum is needed for scalar extraction, compute it on the CPU *before* moving the tensor to the device. Replace dynamically constructed lists used with Python`s `sum()` with direct arithmetic (e.g., `var1 + var2 + const1`) to avoid list allocation overhead.
