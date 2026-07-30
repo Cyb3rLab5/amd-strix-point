@@ -18,3 +18,7 @@
 ## 2024-07-22 - Implicit CPU-GPU Sync from Python Lists
 **Learning:** Creating a PyTorch tensor directly from a Python list containing elements (or a scalar) and immediately moving it to a device (e.g., `torch.tensor([val] * bs).to(device)`) forces an implicit, blocking CPU-GPU synchronization overhead.
 **Action:** When initializing tensors with constant values, use `torch.full()` or `torch.zeros()`/`torch.ones()` directly on the target device to avoid CPU-GPU synchronization and reduce overhead.
+
+## 2024-05-18 - Replacing sum() for arithmetic loops
+**Learning:** Replaced `sum()` with dynamic list allocation during calculations inside the `sample_framepack` inner generation loop, finding that passing dynamically created lists (e.g. `sum([a, b, c, 16])`) to the built-in python sum introduces completely unnecessary list creation/destruction overhead compared to raw arithmetic (`a + b + c + 16`).
+**Action:** Always favor native addition instead of `sum([var1, var2])` when building dynamic arithmetic sequences, especially inside tight processing loops.
