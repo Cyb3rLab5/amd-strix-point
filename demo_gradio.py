@@ -243,7 +243,8 @@ def worker(hardware_profile, input_image, prompt, n_prompt, seed, total_second_l
 
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
 
-            indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
+            # ⚡ Bolt Optimization: Replaced sum([...]) with direct arithmetic to avoid list allocation overhead in hot loop
+            indices = torch.arange(0, 20 + latent_padding_size + latent_window_size).unsqueeze(0)
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
