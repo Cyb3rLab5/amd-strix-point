@@ -22,3 +22,6 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+## 2024-10-25 - Python List Allocation Overhead in Hot Loops
+**Learning:** Constructing Python lists and passing them to built-in functions like `sum()` (e.g., `sum([var1, var2, const1, const2])`) inside tight generation loops (like diffusion sampling callbacks) introduces continuous, unnecessary CPU overhead due to object allocation and iteration.
+**Action:** Replace dynamically allocated lists used merely for summing constants and simple variables with direct, unrolled arithmetic (e.g., `var1 + var2 + const_sum`).
