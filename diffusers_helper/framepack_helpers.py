@@ -26,9 +26,12 @@ def encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokeniz
         return_attention_mask=True,
     )
 
+    # Optimization: Compute the sum on the CPU before moving the mask to the device.
+    # This avoids a blocking CPU-GPU synchronization when calling `.sum()` on a GPU tensor
+    # and converting it to a Python integer.
+    llama_attention_length = int(llama_inputs.attention_mask.sum())
     llama_input_ids = llama_inputs.input_ids.to(text_encoder.device)
     llama_attention_mask = llama_inputs.attention_mask.to(text_encoder.device)
-    llama_attention_length = int(llama_attention_mask.sum())
 
     llama_outputs = text_encoder(
         input_ids=llama_input_ids,
