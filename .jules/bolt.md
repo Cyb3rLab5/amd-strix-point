@@ -22,3 +22,6 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+## 2024-10-24 - Python Object ID Caching Anti-Pattern
+**Learning:** Never use `id(tensor)` (or Python object IDs) as cache keys for PyTorch tensors. Python reuses memory addresses for short-lived, garbage-collected objects, which can cause completely different tensors to share the same ID and lead to critical cache-collision bugs and silent data corruption.
+**Action:** Do not rely on object identity (`id()`) for caching unless the lifecycle of the object is strictly controlled and guaranteed to persist for the entire lifetime of the cache. For dynamic PyTorch tensors, avoid caching based on object identity altogether.
