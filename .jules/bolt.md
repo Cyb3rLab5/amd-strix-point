@@ -22,3 +22,6 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+## 2024-07-24 - Intermediate CPU Tensor Allocation Overhead
+**Learning:** Calling `.cpu()` on a PyTorch scalar tensor right before calling `.item()` (e.g. `tensor.cpu().item()`) forces the allocation of an intermediate CPU tensor, wasting memory and CPU cycles, because `.item()` inherently transfers the data to host memory and returns a native Python float/int.
+**Action:** When extracting scalar values from device tensors to Python types, call `.item()` directly without `.cpu()` to avoid intermediate memory allocations.
