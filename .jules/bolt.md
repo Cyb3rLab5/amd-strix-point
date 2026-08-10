@@ -22,3 +22,6 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+## 2024-07-28 - Redundant .cpu() calls before .item()
+**Learning:** Calling `.cpu()` before `.item()` (e.g., `tensor.cpu().item()`) on a GPU tensor is a de-optimization. `.item()` already synchronizes and transfers the scalar to the host. Adding `.cpu()` introduces unnecessary memory allocation and dispatch overhead for an intermediate CPU tensor.
+**Action:** Remove redundant `.cpu()` calls before `.item()` to reduce overhead, especially in hot loops like model iteration or diffusion steps.
