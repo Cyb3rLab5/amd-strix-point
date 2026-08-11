@@ -22,3 +22,10 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+## 2024-10-25 - Avoid .cpu().item() Anti-Pattern
+**Learning:** Calling `.cpu().item()` on a PyTorch tensor (especially in hot loops like diffusion iteration blocks) creates an unnecessary intermediate host tensor. `.item()` inherently synchronizes and transfers the value to the host directly.
+**Action:** When extracting scalar values from tensors in hot paths, exclusively use `.item()` and avoid chaining `.cpu()` first.
+
+## 2024-10-25 - Device Safety in torch.stack() Refactors
+**Learning:** Refactoring `torch.tensor([a, b])` into `torch.stack([a, b])` for lists containing float values and tensors breaks if the tensors and manually casted floats are on mismatched devices (e.g., if one tensor was generated on CPU). `torch.tensor` handles mixed inputs gracefully; `torch.stack` rigidly fails.
+**Action:** Ensure strict device uniformity or explicitly test equivalence across typical input pipelines (like scheduler sigmas being on CPU) before replacing list constructors with `torch.stack`.
