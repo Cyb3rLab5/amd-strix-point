@@ -22,3 +22,7 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+
+## 2024-05-18 - [PyTorch Tensor Creation with Lists]
+**Learning:** `torch.tensor([a, b])` where `a` and `b` are lists/tensors on the GPU triggers an implicit blocking CPU-GPU sync. But replacing it with `torch.stack()` when the list can contain basic python types (like floats) causes `TypeError: expected Tensor... but got float`, and specifying `.dtype` on basic floats causes `AttributeError`.
+**Action:** When replacing `torch.tensor` with `torch.stack` for lists, strictly verify that the list ONLY contains PyTorch tensors. If it contains standard Python floats or integers, `torch.stack()` is unsafe without explicit conversion, and the existing `torch.tensor(..., device=...)` might be required for safe handling of mixed types.
