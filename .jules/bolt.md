@@ -22,3 +22,7 @@
 ## 2024-07-23 - CPU-GPU Sync on Device Tensors
 **Learning:** Calling `.sum()` on a GPU tensor and immediately converting it to a Python integer (e.g., `int(tensor.sum())` or `tensor.sum().item()`) forces a blocking CPU-GPU synchronization, functioning identically to `.item()`.
 **Action:** Compute sums on the CPU before moving tensors to the device to avoid this overhead in hot loops or setup logic.
+
+## 2024-08-14 - Blocking CPU-GPU synchronization when creating tensors from lists containing GPU tensors
+**Learning:** Creating a PyTorch tensor from a Python list containing GPU tensors (e.g., `torch.tensor([gpu_tensor, ...])` or mixed with floats) forces an implicit, blocking CPU-GPU synchronization. PyTorch moves the data to the CPU to assemble it before copying it back to the GPU. This introduces severe overhead in hot loops.
+**Action:** Ensure the list only contains GPU tensors (converting any Python floats explicitly via `torch.tensor(val, device=device)`) and use `torch.stack()` or `torch.cat()` to combine them. This keeps operations on the device and avoids blocking synchronizations.
