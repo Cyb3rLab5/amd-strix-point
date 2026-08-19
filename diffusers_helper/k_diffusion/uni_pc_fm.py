@@ -25,6 +25,7 @@ class FlowMatchUniPC:
     def update_fn(self, x, model_prev_list, t_prev_list, t, order):
         assert order <= len(model_prev_list)
         dims = x.dim()
+        view_shape = (-1,) + (1,) * (dims - 1)
 
         t_prev_0 = t_prev_list[-1]
         lambda_prev_0 = - torch.log(t_prev_0)
@@ -33,21 +34,26 @@ class FlowMatchUniPC:
 
         h = lambda_t - lambda_prev_0
 
-        rks = []
-        D1s = []
+        rks_list = []
+        D1s_list = []
+        # Optimization: use explicit list of tensors instead of converting lists
+        # of scalar tensors using `torch.tensor(list)`, which causes slow Python-to-C++ synchronization.
         for i in range(1, order):
             t_prev_i = t_prev_list[-(i + 1)]
             model_prev_i = model_prev_list[-(i + 1)]
             lambda_prev_i = - torch.log(t_prev_i)
             rk = ((lambda_prev_i - lambda_prev_0) / h)[0]
-            rks.append(rk)
-            D1s.append((model_prev_i - model_prev_0) / rk)
+            rks_list.append(rk)
+            D1s_list.append((model_prev_i - model_prev_0) / rk)
 
-        rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+        if len(rks_list) > 0:
+            rks_list.append(torch.ones((), device=x.device, dtype=h.dtype))
+            rks = torch.stack(rks_list)
+        else:
+            rks = torch.ones((1,), device=x.device, dtype=h.dtype)
 
-        R = []
-        b = []
+        R_list = []
+        b_list = []
 
         hh = -h[0]
         h_phi_1 = torch.expm1(hh)
@@ -63,20 +69,24 @@ class FlowMatchUniPC:
             raise NotImplementedError('Bad variant!')
 
         for i in range(1, order + 1):
-            R.append(torch.pow(rks, i - 1))
-            b.append(h_phi_k * factorial_i / B_h)
+            R_list.append(torch.pow(rks, i - 1))
+            b_list.append(h_phi_k * factorial_i / B_h)
             factorial_i *= (i + 1)
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
-        R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        R = torch.stack(R_list)
+        b = torch.stack(b_list)
 
-        use_predictor = len(D1s) > 0
+        use_predictor = len(D1s_list) > 0
 
         if use_predictor:
-            D1s = torch.stack(D1s, dim=1)
+            if len(D1s_list) == 1:
+                D1s = D1s_list[0].unsqueeze(1)
+            else:
+                D1s = torch.stack(D1s_list, dim=1)
+
             if order == 2:
-                rhos_p = torch.full((1,), 0.5, device=b.device)
+                rhos_p = torch.full((1,), 0.5, device=b.device, dtype=b.dtype)
             else:
                 rhos_p = torch.linalg.solve(R[:-1, :-1], b[:-1])
         else:
@@ -84,18 +94,19 @@ class FlowMatchUniPC:
             rhos_p = None
 
         if order == 1:
-            rhos_c = torch.full((1,), 0.5, device=b.device)
+            rhos_c = torch.full((1,), 0.5, device=b.device, dtype=b.dtype)
         else:
             rhos_c = torch.linalg.solve(R, b)
 
-        x_t_ = expand_dims(t / t_prev_0, dims) * x - expand_dims(h_phi_1, dims) * model_prev_0
+        # Optimization: replaced expand_dims() function call overhead with an inline .view()
+        x_t_ = (t / t_prev_0).view(view_shape) * x - h_phi_1.view(view_shape) * model_prev_0
 
         if use_predictor:
             pred_res = torch.tensordot(D1s, rhos_p, dims=([1], [0]))
         else:
             pred_res = 0
 
-        x_t = x_t_ - expand_dims(B_h, dims) * pred_res
+        x_t = x_t_ - B_h.view(view_shape) * pred_res
         model_t = self.model_fn(x_t, t)
 
         if D1s is not None:
@@ -104,7 +115,7 @@ class FlowMatchUniPC:
             corr_res = 0
 
         D1_t = (model_t - model_prev_0)
-        x_t = x_t_ - expand_dims(B_h, dims) * (corr_res + rhos_c[-1] * D1_t)
+        x_t = x_t_ - B_h.view(view_shape) * (corr_res + rhos_c[-1] * D1_t)
 
         return x_t, model_t
 
