@@ -960,7 +960,9 @@ class FramePackTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, FromOrigin
                 should_calc = True
                 self.accumulated_rel_l1_distance = 0
             else:
-                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).cpu().item()
+                # ⚡ Bolt Optimization: Removed unnecessary .cpu() before .item() to avoid allocating an intermediate CPU tensor,
+                # reducing dispatch overhead in the hot sampling loop. .item() already safely synchronizes and transfers the scalar.
+                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).item()
                 self.accumulated_rel_l1_distance += self.teacache_rescale_func(curr_rel_l1)
                 should_calc = self.accumulated_rel_l1_distance >= self.rel_l1_thresh
 
