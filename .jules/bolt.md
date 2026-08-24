@@ -26,3 +26,11 @@
 ## 2024-07-25 - torch.stack vs torch.tensor Type Sensitivity
 **Learning:** While `torch.stack(list)` avoids the severe CPU-GPU sync bottleneck introduced by `torch.tensor(list, device=device)`, it is highly type-sensitive and will instantly crash with a `TypeError` if the list contains any standard Python primitives (like floats or ints).
 **Action:** When refactoring list-to-tensor operations to use `torch.stack()` for performance, ensure every element in the list is explicitly cast to a tensor (e.g., `torch.tensor(1., device=device)`) before calling `.stack()`.
+
+## 2024-08-24 - Unsafe PyTorch .view() micro-optimizations
+**Learning:** When attempting to avoid the nanosecond CPU overhead of PyTorch dynamic tuple broadcasting (e.g. `v[(...,) + (None,) * (dims - 1)]`), replacing it with `.view([-1] + ...)` introduces a severe functional regression by flattening multi-dimensional (or 0-dimensional) tensors instead of preserving their original shape.
+**Action:** Avoid micro-optimizations that only save nanoseconds in Python tuple creation, as they fall under "premature optimization". If refactoring `.view()` shape creation, strictly preserve the original dimensions (e.g., using `v.shape`).
+
+## 2024-08-24 - Unnecessary .cpu() before .item()
+**Learning:** Calling `.cpu()` before `.item()` (e.g., `tensor.cpu().item()`) on a GPU tensor in a hot loop is a de-optimization. `.item()` inherently transfers the scalar to the host and synchronizes. Adding `.cpu()` forces PyTorch to allocate an unnecessary intermediate CPU tensor object and dispatch overhead.
+**Action:** Always call `.item()` directly on the GPU tensor and remove redundant `.cpu()` calls to reduce memory allocation overhead in hot paths.
