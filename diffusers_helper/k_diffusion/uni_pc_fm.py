@@ -10,7 +10,8 @@ from tqdm.auto import trange
 
 
 def expand_dims(v, dims):
-    return v[(...,) + (None,) * (dims - 1)]
+    # Optimization: Replaced dynamic tuple indexing with .reshape() to avoid PyTorch CPU overhead.
+    return v.reshape(v.shape + (1,) * (dims - 1))
 
 
 class FlowMatchUniPC:
