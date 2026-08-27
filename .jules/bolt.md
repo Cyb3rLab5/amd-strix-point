@@ -26,3 +26,6 @@
 ## 2024-07-25 - torch.stack vs torch.tensor Type Sensitivity
 **Learning:** While `torch.stack(list)` avoids the severe CPU-GPU sync bottleneck introduced by `torch.tensor(list, device=device)`, it is highly type-sensitive and will instantly crash with a `TypeError` if the list contains any standard Python primitives (like floats or ints).
 **Action:** When refactoring list-to-tensor operations to use `torch.stack()` for performance, ensure every element in the list is explicitly cast to a tensor (e.g., `torch.tensor(1., device=device)`) before calling `.stack()`.
+## 2024-07-28 - PyTorch Dynamic Tuple Indexing Overhead
+**Learning:** Dynamically creating shape tuples for broadcasting (e.g., `(...,) + (None,) * (dims - 1)`) inside hot loops introduces PyTorch CPU overhead compared to explicit `.reshape()`. Furthermore, while `.view()` is often faster, it will crash with a RuntimeError on non-contiguous tensors.
+**Action:** Pre-calculate shapes where possible and use `.reshape(shape)` instead of dynamic tuple indexing to improve execution speed safely, avoiding the non-contiguous tensor crashes associated with `.view()`.
