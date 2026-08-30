@@ -43,8 +43,9 @@ class FlowMatchUniPC:
             rks.append(rk)
             D1s.append((model_prev_i - model_prev_0) / rk)
 
-        rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+        rks.append(torch.tensor(1., device=x.device, dtype=h.dtype))
+        # ⚡ Bolt Optimization: Replaced torch.tensor([...]) with torch.stack(...) to avoid implicit CPU-GPU synchronization.
+        rks = torch.stack(rks)
 
         R = []
         b = []
@@ -69,7 +70,8 @@ class FlowMatchUniPC:
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        # ⚡ Bolt Optimization: Replaced torch.tensor([...]) with torch.stack(...) to avoid implicit CPU-GPU synchronization.
+        b = torch.stack(b)
 
         use_predictor = len(D1s) > 0
 
