@@ -10,7 +10,9 @@ from tqdm.auto import trange
 
 
 def expand_dims(v, dims):
-    return v[(...,) + (None,) * (dims - 1)]
+    # ⚡ Bolt Optimization: Use .reshape instead of dynamic tuple indexing to avoid
+    # PyTorch CPU overhead inside hot loops. This safely handles non-contiguous tensors.
+    return v.reshape(v.shape + (1,) * (dims - 1))
 
 
 class FlowMatchUniPC:
