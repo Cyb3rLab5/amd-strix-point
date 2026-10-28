@@ -2,7 +2,8 @@ import torch
 
 
 def append_dims(x, target_dims):
-    return x[(...,) + (None,) * (target_dims - x.ndim)]
+    # Optimization: Replaced dynamic tuple indexing with .reshape() to avoid advanced indexing CPU overhead
+    return x.reshape(x.shape + (1,) * (target_dims - x.ndim))
 
 
 def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=1.0):
