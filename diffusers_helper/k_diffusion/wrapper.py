@@ -2,7 +2,9 @@ import torch
 
 
 def append_dims(x, target_dims):
-    return x[(...,) + (None,) * (target_dims - x.ndim)]
+    # ⚡ Bolt Optimization: Use .reshape instead of dynamic tuple indexing to avoid
+    # PyTorch CPU overhead inside hot loops. This safely handles non-contiguous tensors.
+    return x.reshape(x.shape + (1,) * (target_dims - x.ndim))
 
 
 def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=1.0):

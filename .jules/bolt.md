@@ -30,3 +30,7 @@
 ## 2024-07-26 - Dynamic Tuple Indexing Overhead in PyTorch Hot Loops
 **Learning:** Dynamically creating shape tuples for broadcasting (e.g., `(...,) + (None,) * (dims - 1)`) inside hot loops introduces PyTorch CPU overhead. In PyTorch, indexing with `...` and `None` requires the library to parse the complex tuple and route it through the advanced indexing dispatcher.
 **Action:** Pre-calculate the shape and use `.reshape(shape)` instead to improve execution speed safely. Avoid using `.view()` as it will throw a RuntimeError on non-contiguous tensors. `.reshape()` safely handles non-contiguous tensors and avoids unsafe flattening while maintaining speed improvements over dynamic tuple indexing.
+
+## 2024-05-18 - [PyTorch Dynamic Tuple Broadcasting Overhead]
+**Learning:** In PyTorch, using dynamic tuple index construction for broadcasting, like `x[(...,) + (None,) * (target_dims - x.ndim)]`, introduces noticeable PyTorch CPU overhead compared to explicit `.reshape()` when called frequently in hot loops, such as the `append_dims` helper in `wrapper.py`. `unsqueeze()` is also slower than `reshape()`.
+**Action:** When reshaping or broadcasting tensors dynamically inside heavily-iterated functions, use `.reshape()` rather than tuple concatenation indexing to minimize CPU overhead.
