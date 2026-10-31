@@ -30,3 +30,7 @@
 ## 2024-07-26 - Dynamic Tuple Indexing Overhead in PyTorch Hot Loops
 **Learning:** Dynamically creating shape tuples for broadcasting (e.g., `(...,) + (None,) * (dims - 1)`) inside hot loops introduces PyTorch CPU overhead. In PyTorch, indexing with `...` and `None` requires the library to parse the complex tuple and route it through the advanced indexing dispatcher.
 **Action:** Pre-calculate the shape and use `.reshape(shape)` instead to improve execution speed safely. Avoid using `.view()` as it will throw a RuntimeError on non-contiguous tensors. `.reshape()` safely handles non-contiguous tensors and avoids unsafe flattening while maintaining speed improvements over dynamic tuple indexing.
+
+## 2024-10-31 - Redundant CPU Transfer
+**Learning:** Calling `.cpu()` before `.item()` on a GPU tensor introduces unnecessary memory allocation overhead because `.item()` already handles the host transfer.
+**Action:** Call `.item()` directly on the tensor.
