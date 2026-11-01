@@ -45,8 +45,8 @@ class FlowMatchUniPC:
             rks.append(rk)
             D1s.append((model_prev_i - model_prev_0) / rk)
 
-        rks.append(1.)
-        rks = torch.tensor(rks, device=x.device)
+        rks.append(torch.tensor(1., device=x.device))
+        rks = torch.stack(rks)
 
         R = []
         b = []
@@ -66,12 +66,15 @@ class FlowMatchUniPC:
 
         for i in range(1, order + 1):
             R.append(torch.pow(rks, i - 1))
-            b.append(h_phi_k * factorial_i / B_h)
+            b_val = h_phi_k * factorial_i / B_h
+            if not isinstance(b_val, torch.Tensor):
+                b_val = torch.tensor(b_val, device=x.device)
+            b.append(b_val)
             factorial_i *= (i + 1)
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        b = torch.stack(b)
 
         use_predictor = len(D1s) > 0
 
