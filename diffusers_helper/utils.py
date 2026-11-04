@@ -442,7 +442,9 @@ def clamped_linear_interpolation(x, x_min, y_min, x_max, y_max, sigma=1.0):
 
 
 def expand_to_dims(x, target_dims):
-    return x.view(*x.shape, *([1] * max(0, target_dims - x.dim())))
+    # ⚡ Bolt Optimization: Use .reshape instead of .view to safely handle non-contiguous
+    # tensors while maintaining speed improvements over dynamic tuple indexing.
+    return x.reshape(x.shape + (1,) * max(0, target_dims - x.dim()))
 
 
 def repeat_to_batch_size(tensor: torch.Tensor, batch_size: int):
