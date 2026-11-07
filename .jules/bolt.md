@@ -34,3 +34,7 @@
 ## 2024-10-31 - Redundant CPU Transfer
 **Learning:** Calling `.cpu()` before `.item()` on a GPU tensor introduces unnecessary memory allocation overhead because `.item()` already handles the host transfer.
 **Action:** Call `.item()` directly on the tensor.
+
+## 2024-05-18 - Avoiding implicit CPU-GPU synchronization in UniPC sampler
+**Learning:** Creating a PyTorch tensor from a Python list of GPU tensors (or mixed with floats) like `torch.tensor(rks)` inside the sampler loop forces an implicit, blocking CPU-GPU synchronization because PyTorch moves the data to the CPU to assemble it.
+**Action:** Always use `torch.stack()` (and ensure all elements are tensors, not floats) instead of `torch.tensor()` for lists of tensors in hot loops to avoid device synchronization overhead.
