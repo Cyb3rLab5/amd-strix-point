@@ -362,9 +362,9 @@ class HunyuanVideoIndividualTokenRefiner(nn.Module):
             batch_size = attention_mask.shape[0]
             seq_len = attention_mask.shape[1]
             attention_mask = attention_mask.to(hidden_states.device).bool()
-            self_attn_mask_1 = attention_mask.view(batch_size, 1, 1, seq_len).repeat(1, 1, seq_len, 1)
-            self_attn_mask_2 = self_attn_mask_1.transpose(2, 3)
-            self_attn_mask = (self_attn_mask_1 & self_attn_mask_2).bool()
+            # ⚡ Bolt Optimization: Use view-based broadcasting instead of explicit .repeat() and .transpose()
+            # to avoid large intermediate memory allocations and reduce execution overhead.
+            self_attn_mask = attention_mask.view(batch_size, 1, 1, seq_len) & attention_mask.view(batch_size, 1, seq_len, 1)
             self_attn_mask[:, :, :, 0] = True
 
         for block in self.refiner_blocks:
