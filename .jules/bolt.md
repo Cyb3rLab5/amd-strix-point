@@ -38,3 +38,7 @@
 ## 2024-05-18 - Avoiding implicit CPU-GPU synchronization in UniPC sampler
 **Learning:** Creating a PyTorch tensor from a Python list of GPU tensors (or mixed with floats) like `torch.tensor(rks)` inside the sampler loop forces an implicit, blocking CPU-GPU synchronization because PyTorch moves the data to the CPU to assemble it.
 **Action:** Always use `torch.stack()` (and ensure all elements are tensors, not floats) instead of `torch.tensor()` for lists of tensors in hot loops to avoid device synchronization overhead.
+
+## 2024-05-20 - 2D Attention Mask Memory Overhead
+**Learning:** Explicitly expanding dimensions with `.repeat()` and `.transpose()` to construct 2D attention masks allocates significant memory and slows down execution.
+**Action:** Use PyTorch view-based broadcasting (e.g., `mask.view(B, 1, 1, S) & mask.view(B, 1, S, 1)`) instead to leverage native broadcasting and avoid massive memory overhead.
